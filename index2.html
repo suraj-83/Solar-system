@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Realistic Day-Night Cycle with Seasons, Rain, and Snow in Fractal Forest</title>
+	<style>
+		body {
+			margin: 0;
+			padding: 0;
+			overflow: hidden;
+			background-color: #0d1b2a;
+			font-family: Arial, sans-serif;
+		}
+
+		canvas {
+			display: block;
+			position: absolute;
+			top: 0;
+			left: 0;
+		}
+
+		nav {
+			background-color: #333;
+			color: black;
+			padding: 10px;
+			position: fixed;
+			top: 0;
+			width: 100%;
+			text-align: center;
+			z-index: 10;
+			box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
+		}
+
+		nav a {
+			color: black;
+			text-decoration: none;
+			margin: 0 15px;
+			font-weight: bold;
+			transition: color 0.3s ease;
+		}
+
+		nav a:hover {
+			color: #FFD700;
+		}
+
+		#controls {
+			position: absolute;
+			top: 60px;
+			left: 20px;
+			z-index: 10;
+			color: black;
+		}
+
+		#seasonSelect,
+		#cycleSpeed,
+		#rainToggle {
+			margin: 10px 0;
+			padding: 5px;
+			font-size: 16px;
+		}
+	</style>
+</head>
+
+<body>
+	<nav>
+		<a href="https://codepen.io/DodoElkotb" target="_blank">Visit My other Websites</a>
+	</nav>
+	<canvas id="forestCanvas"></canvas>
+	<div id="controls">
+		<label for="seasonSelect">Select Season:</label>
+		<select id="seasonSelect">
+			<option value="spring">Spring</option>
+			<option value="summer">Summer</option>
+			<option value="autumn">Autumn</option>
+			<option value="winter">Winter</option>
+		</select>
+		<br>
+		<label for="cycleSpeed">Cycle Speed:</label>
+		<input type="range" id="cycleSpeed" min="0.01" max="0.2" step="0.01" value="0.05">
+		<br>
+		<label for="rainToggle">Rain/Snow:</label>
+		<input type="checkbox" id="rainToggle">
+	</div>
+
+	<script>
+		const canvas = document.getElementById('forestCanvas');
+		const ctx = canvas.getContext('2d');
+		canvas.width = window.innerWidth;
+		canvas.height = window.innerHeight;
+		let trees = [];
+		let clouds = [];
+		let stars = [];
+		let rainOrSnow = [];
+		let groundGradient;
+		let time = 0;
+		let speed = 0.05; // Default speed
+		let season = 'spring';
+		let isRaining = false;
+		const seasons = {
+			spring: {
+				treeColors: [{
+						color1: 'rgb(34, 139, 34)',
+						color2: 'rgb(60, 179, 113)'
+					}, // Fresh green
+					{
+						color1: 'rgb(46, 139, 87)',
+						color2: 'rgb(107, 142, 35)'
+					},
+					{
+						color1: 'rgb(85, 107, 47)',
+						color2: 'rgb(128, 128, 0)'
+					}
+				],
+				background: '#a8e6cf',
+				groundColor: ['#2c6e4f', '#1b3c3a'],
+				cloudOpacity: 0.8
+			},
+			summer: {
+				treeColors: [{
+						color1: 'rgb(34, 139, 34)',
+						color2: 'rgb(60, 179, 113)'
+					}, // Vibrant green
+					{
+						color1: 'rgb(46, 139, 87)',
+						color2: 'rgb(107, 142, 35)'
+					},
+					{
+						color1: 'rgb(85, 107, 47)',
+						color2: 'rgb(128, 128, 0)'
+					}
+				],
+				background: '#ffeb3b',
+				groundColor: ['#3b8b5d', '#265947'],
+				cloudOpacity: 0.9
+			},
+			autumn: {
+				treeColors: [{
+						color1: 'rgb(139, 69, 19)',
+						color2: 'rgb(205, 92, 92)'
+					}, // Brown, red, orange
+					{
+						color1: 'rgb(210, 105, 30)',
+						color2: 'rgb(255, 165, 0)'
+					},
+					{
+						color1: 'rgb(244, 164, 96)',
+						color2: 'rgb(218, 112, 214)'
+					}
+				],
+				background: '#ffb347',
+				groundColor: ['#87431d', '#5c3118'],
+				cloudOpacity: 0.7
+			},
+			winter: {
+				treeColors: [{
+						color1: 'rgb(200, 200, 255)',
+						color2: 'rgb(180, 180, 255)'
+					}, // Light blues, blacks
+					{
+						color1: 'rgb(230, 230, 250)',
+						color2: 'rgb(240, 240, 255)'
+					},
+					{
+						color1: 'rgb(255, 255, 255)',
+						color2: 'rgb(240, 255, 255)'
+					}
+				],
+				background: '#a0c4ff',
+				groundColor: ['#bcccdc', '#8395a7'],
+				cloudOpacity: 0.5
+			}
+		};
+
+		function createGroundGradient() {
+			groundGradient = ctx.createLinearGradient(0, canvas.height - 150, 0, canvas.height);
+			const groundColors = seasons[season].groundColor;
+			groundGradient.addColorStop(0, groundColors[0]);
+			groundGradient.addColorStop(1, groundColors[1]);
+		}
+
+		function drawFractalTree(startX, startY, length, angle, branchWidth, color1, color2) {
+			ctx.beginPath();
+			ctx.save();
+			ctx.strokeStyle = color1;
+			ctx.fillStyle = color2;
+			ctx.lineWidth = branchWidth;
+			ctx.translate(startX, startY);
+			ctx.rotate(angle * Math.PI / 180);
+			ctx.moveTo(0, 0);
+			ctx.lineTo(0, -length);
+			ctx.stroke();
+			if (length < 10) {
+				ctx.restore();
+				return;
+			}
+			drawFractalTree(0, -length, length * 0.75, angle - 15, branchWidth * 0.7, color1, color2);
+			drawFractalTree(0, -length, length * 0.75, angle + 15, branchWidth * 0.7, color1, color2);
+			ctx.restore();
+		}
+
+		function drawGround() {
+			ctx.fillStyle = groundGradient;
+			ctx.fillRect(0, canvas.height - 150, canvas.width, 150);
+		}
+
+		function drawCloud(x, y, scale, alpha) {
+			ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+			ctx.beginPath();
+			ctx.arc(x, y, 30 * scale, 0, Math.PI * 2);
+			ctx.arc(x + 40 * scale, y, 50 * scale, 0, Math.PI * 2);
+			ctx.arc(x + 90 * scale, y, 30 * scale, 0, Math.PI * 2);
+			ctx.closePath();
+			ctx.fill();
+		}
+
+		function drawStars() {
+			stars.forEach(star => {
+				let alpha = Math.max(0, Math.sin(time) * 1); // Stars fade in/out
+				ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+				ctx.beginPath();
+				ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+				ctx.fill();
+			});
+		}
+
+		function drawRainOrSnow() {
+			rainOrSnow.forEach(particle => {
+				if (season === 'winter') {
+					// Draw snowflakes
+					ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+					ctx.beginPath();
+					ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+					ctx.fill();
+				} else {
+					// Draw raindrops
+					ctx.strokeStyle = 'rgba(174, 194, 224, 0.5)';
+					ctx.lineWidth = 2;
+					ctx.beginPath();
+					ctx.moveTo(particle.x, particle.y);
+					ctx.lineTo(particle.x, particle.y + 10);
+					ctx.stroke();
+				}
+				// Move particles down the screen
+				particle.y += particle.speed;
+				// If particles go off screen, reset position to top
+				if (particle.y > canvas.height) {
+					particle.y = 0 - 10;
+					particle.x = Math.random() * canvas.width;
+				}
+			});
+		}
+
+		function drawSunAndMoon() {
+			let sunX = canvas.width / 2 + (canvas.width / 2) * Math.cos(time);
+			let sunY = canvas.height / 2 + (canvas.height / 2) * Math.sin(time);
+			let moonX = canvas.width / 2 - (canvas.width / 2) * Math.cos(time);
+			let moonY = canvas.height / 2 - (canvas.height / 2) * Math.sin(time);
+			ctx.fillStyle = 'rgba(255, 223, 0, 0.8)'; // Sun color
+			ctx.beginPath();
+			ctx.arc(sunX, sunY, 50, 0, Math.PI * 2);
+			ctx.closePath();
+			ctx.fill();
+			ctx.fillStyle = 'rgba(255, 255, 255, 0.8)'; // Moon color
+			ctx.beginPath();
+			ctx.arc(moonX, moonY, 40, 0, Math.PI * 2);
+			ctx.closePath();
+			ctx.fill();
+		}
+
+		function drawBackground() {
+			const currentSeason = seasons[season];
+			let dayColor = currentSeason.background;
+			let nightColor = `rgb(${Math.floor(0 + 20 * Math.sin(time))}, ${Math.floor(0 + 10 * Math.sin(time))}, ${Math.floor(0 + 20 * Math.sin(time))})`; // Even darker night colors
+			let skyGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+			skyGradient.addColorStop(0, dayColor);
+			skyGradient.addColorStop(1, nightColor);
+			ctx.fillStyle = skyGradient;
+			ctx.fillRect(0, 0, canvas.width, canvas.height);
+		}
+
+		function generateFractalForest() {
+			trees = [];
+			clouds = [];
+			stars = [];
+			rainOrSnow = [];
+			ctx.clearRect(0, 0, canvas.width, canvas.height);
+			const colors = seasons[season].treeColors;
+			const baseLengths = [100, 120, 140];
+			const baseWidths = [10, 12, 14];
+			for (let i = 0; i < 20; i++) {
+				let x = (canvas.width / 10) * i + Math.random() * 50;
+				let y = canvas.height - 100 - Math.random() * 50;
+				let length = baseLengths[Math.floor(Math.random() * baseLengths.length)];
+				let branchWidth = baseWidths[Math.floor(Math.random() * baseWidths.length)];
+				let colorSet = colors[Math.floor(Math.random() * colors.length)];
+				trees.push({
+					x,
+					y,
+					length,
+					angle: 0,
+					branchWidth,
+					colorSet
+				});
+			}
+			// Generate clouds
+			for (let i = 0; i < 5; i++) {
+				let x = Math.random() * canvas.width;
+				let y = Math.random() * canvas.height / 2;
+				let scale = 0.5 + Math.random() * 1.5;
+				clouds.push({
+					x,
+					y,
+					scale
+				});
+			}
+			// Generate stars
+			for (let i = 0; i < 100; i++) {
+				let x = Math.random() * canvas.width;
+				let y = Math.random() * (canvas.height / 2);
+				let size = Math.random() * 1.5 + 0.5;
+				stars.push({
+					x,
+					y,
+					size
+				});
+			}
+			// Generate rain or snow
+			if (isRaining && (season === 'autumn' || season === 'winter')) {
+				for (let i = 0; i < 100; i++) {
+					rainOrSnow.push({
+						x: Math.random() * canvas.width,
+						y: Math.random() * canvas.height,
+						speed: Math.random() * 5 + 2,
+						size: season === 'winter' ? Math.random() * 2 + 1 : undefined // Smaller size for snowflakes
+					});
+				}
+			}
+		}
+
+		function animate() {
+			ctx.clearRect(0, 0, canvas.width, canvas.height);
+			drawBackground();
+			drawSunAndMoon();
+			drawGround();
+			clouds.forEach(cloud => {
+				// Gradually hide clouds as it gets darker
+				let fadeAmount = Math.max(0, Math.sin(time) * 1); // Ensure fadeAmount is never negative
+				let alpha = seasons[season].cloudOpacity - fadeAmount; // Clouds gradually fade out
+				drawCloud(cloud.x, cloud.y, cloud.scale, alpha);
+				cloud.x -= 0.5;
+				if (cloud.x < -150) {
+					cloud.x = canvas.width + 150;
+				}
+			});
+			drawStars(); // Draw stars after background, sun, moon, and clouds
+			trees.forEach(tree => {
+				drawFractalTree(tree.x, tree.y, tree.length, tree.angle, tree.branchWidth, tree.colorSet.color1, tree.colorSet.color2);
+				tree.x -= 1;
+				if (tree.x < -150) {
+					tree.x = canvas.width + Math.random() * 50;
+					tree.y = canvas.height - 100 - Math.random() * 50;
+				}
+			});
+			if (isRaining && (season === 'autumn' || season === 'winter')) {
+				drawRainOrSnow();
+			}
+			time += speed; // Adjust speed based on user input
+			requestAnimationFrame(animate);
+		}
+
+		function updateSpeed() {
+			speed = parseFloat(document.getElementById('cycleSpeed').value);
+		}
+
+		function updateSeason() {
+			season = document.getElementById('seasonSelect').value;
+			generateFractalForest();
+			createGroundGradient();
+		}
+
+		function toggleRain() {
+			isRaining = document.getElementById('rainToggle').checked;
+			generateFractalForest(); // Regenerate forest with rain or snow
+		}
+		document.getElementById('cycleSpeed').addEventListener('input', updateSpeed);
+		document.getElementById('seasonSelect').addEventListener('change', updateSeason);
+		document.getElementById('rainToggle').addEventListener('change', toggleRain);
+		// Initialize the scene
+		generateFractalForest();
+		createGroundGradient();
+		animate();
+	</script>
+</body>
+
+</html>
